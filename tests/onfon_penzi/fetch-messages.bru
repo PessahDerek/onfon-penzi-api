@@ -1,0 +1,15 @@
+meta {
+  name: fetch-messages
+  type: http
+  seq: 3
+}
+
+get {
+  url: http://localhost:5000/api/text
+  body: none
+  auth: none
+}
+
+headers {
+  Cookie: user_id=2
+}

@@ -1,0 +1,21 @@
+meta {
+  name: send-start
+  type: http
+  seq: 5
+}
+
+post {
+  url: http://localhost:5000/api/text
+  body: json
+  auth: none
+}
+
+headers {
+  Cookie: phone=0741120439
+}
+
+body:json {
+  {
+    "text": "start#Derek Pesa#23#male#Kiambu#Ruaka"
+  }
+}
