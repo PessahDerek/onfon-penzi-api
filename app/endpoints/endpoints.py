@@ -62,7 +62,6 @@ def get_texts():
 def handle_text():
     try:
         active_user = db.session.query(User).filter_by(phone=request.cookies.get("phone")).one_or_none()
-
         text = request.get_json()["text"]
         # split based on #
         split_text = text.split("#")

@@ -76,7 +76,7 @@ def create_account(text: str) -> [str]:
 def save_details(user_obj: User, text: str) -> [str]:
     try:
         text_arr = text.split("#")
-        if len(text_arr) == 7:
+        if len(text_arr) == 6:
             default_msg = "This is the last stage of registration. SMS a brief description of yourself to 22141 starting with the word MYSELF. E.g., MYSELF chocolate, lovely, sexy etc."
             _details, education, profession, marital_status, religion, ethnicity = text.split("#")
             add_details = Details()
@@ -87,18 +87,21 @@ def save_details(user_obj: User, text: str) -> [str]:
             add_details.religion = religion
             add_details.ethnicity = ethnicity
             db.session.add(add_details)
-            user_obj.details = add_details.id
+            # user_obj.details = add_details.id
+
             db.session.commit()
 
             # save user message
             save_message(user_obj, text, user_obj.id)
             # save system message
             save_message(get_system_obj(), default_msg, user_obj.id)
+            db.session.commit()
             return jsonify({"message": "Message sent"}), 200
         else:  # details not provided
             default_msg = "You were registered for dating with your initial details. To search for a MPENZI, SMS match#age#town to 22141 and meet the person of your dreams. E.g., match#23-25#Nairobi"
             save_message(user_obj, text, user_obj.id)
             save_message(get_system_obj(), default_msg, user_obj.id)
+            db.session.commit()
             return jsonify({"message": "Message sent"}), 200
     except Exception as e:
         raise Exception(e)
@@ -109,13 +112,15 @@ def save_description(user_obj: User, text: str) -> [str]:
         detail_obj = db.session.query(Details).filter_by(user_id=user_obj.id).one_or_none()
         if detail_obj is None:
             return ["Sorry we could not find your account! Please register first!"]
-        description = text.split("#")[1]
+        description = text.lower().replace("myself", "").strip()
+        print("Desc: ", description)
         detail_obj.description = description
-        db.session.flush(description)
+        db.session.add(detail_obj)
 
         default_msg = "You are now registered for dating. To search for a MPENZI, SMS match#age#town to 22141 and meet the person of your dreams. E.g., match#23-25#Kisumu"
-        save_message(user_obj, text)
-        save_message(get_system_obj(), default_msg)
+        save_message(user_obj, text, user_obj.id)
+        save_message(get_system_obj(), default_msg, user_obj.id)
+        db.session.commit()
         return jsonify({"message": "Message sent"}), 200
     except Exception as e:
         raise Exception(e)
