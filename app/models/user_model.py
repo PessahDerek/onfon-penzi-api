@@ -7,6 +7,7 @@ class Gender(Enum):
     MALE = "male"
     FEMALE = "female"
 
+
 class Details(db.Model):
     __tablename__ = 'details'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
@@ -17,6 +18,19 @@ class Details(db.Model):
     religion = db.Column(db.String(100), unique=False, nullable=True)
     ethnicity = db.Column(db.String(100), unique=False, nullable=True)
     user_id = db.Column(db.Integer, ForeignKey('users.id'), nullable=False)
+
+    def dict(self):
+        return {
+            "id": self.id,
+            "description": self.description if self.description else "",
+            "education": self.education if self.education else "",
+            "profession": self.profession if self.profession else "",
+            "marital_status": self.marital_status if self.marital_status else "",
+            "religion": self.religion if self.religion else "",
+            "ethnicity": self.ethnicity if self.ethnicity else "",
+            "user_id": self.user_id if self.user_id else "",
+        }
+
 
 class User(db.Model):
     __tablename__ = 'users'
@@ -29,3 +43,14 @@ class User(db.Model):
     town = db.Column(db.String(50), unique=False, nullable=False)
     details = db.relationship('Details', backref='user_ref', lazy=True, cascade='all, delete-orphan')
 
+    def dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "phone": self.phone,
+            "age": self.age,
+            "gender": self.gender.name,
+            "county": self.county,
+            "town": self.town,
+            "details": self.details[0].dict(),
+        }

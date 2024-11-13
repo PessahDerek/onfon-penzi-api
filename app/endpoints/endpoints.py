@@ -2,7 +2,7 @@ from flask import request, redirect, Blueprint, jsonify, make_response
 
 from app.models import Message, User
 from app.utils.methods import valid_number
-from .methods import intro_message, create_account, save_details, save_description
+from .methods import intro_message, create_account, save_details, save_description, handle_matching
 from ..extensions import db
 
 root = Blueprint('root', __name__)
@@ -28,10 +28,10 @@ def start_conversation():
         valid, err = valid_number(phone)
         if not valid:
             return jsonify({"message": err}), 400
-        res = make_response()
+        found = db.session.query(User).filter_by(phone=phone).one_or_none()
+        res = make_response(jsonify({"message": "hello world"}))
         res.set_cookie("phone", phone)
-        res.set_cookie("user_id", "2")
-        res.data = b"{'message': 'hello'}"
+        res.set_cookie("user_id", str(found.id) if found else "")
         return res
     except Exception as e:
         if type(e) == KeyError:
@@ -49,7 +49,7 @@ def start_conversation():
 def get_texts():
     try:
         user_id = request.cookies.get("user_id")
-        print("cookie: ",int(user_id))
+        print("cookie: ", int(user_id))
         texts = db.session.query(Message).filter_by(user_id=int(user_id)).all()
         json_ready_list = [text.to_dict() for text in texts]
         print("text: ", json_ready_list)
@@ -78,7 +78,8 @@ def handle_text():
             return save_details(active_user, text)
         if prefix.startswith("myself"):
             return save_description(active_user, text)
-
+        if prefix.startswith("match"):
+            return handle_matching(active_user, text)
         return jsonify(text)
     except Exception as e:
         if type(e) == KeyError:

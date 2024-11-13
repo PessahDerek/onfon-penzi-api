@@ -1,7 +1,7 @@
 from flask import jsonify, make_response, request
 
 from ..extensions import db
-from ..models import User, Details, Message, Gender
+from ..models import User, Details, Message, Gender, MatchTable, PairTable, SentMatched
 
 
 def get_system_obj():
@@ -18,6 +18,7 @@ def save_message(user: User, message: str, user_id: int):
         new_message.user_id = user_id
         new_message.phone = user.phone
         db.session.add(new_message)
+        return new_message
     except Exception as e:
         print("Error saving message: ", e)
         raise Exception(e)
@@ -35,8 +36,9 @@ def intro_message() -> [str]:
 
 
 def create_account(text: str) -> [str]:
+    print("Creating account...")
     try:
-        _prefix, name, age, gender, county, town = text.split("#")
+        _prefix, name, age, gender, county, town = text.lower().split("#")
         # check for duplicates;
         found = db.session.query(User).filter_by(phone=request.cookies.get("phone")).one_or_none()
         if found is not None:
@@ -123,4 +125,58 @@ def save_description(user_obj: User, text: str) -> [str]:
         db.session.commit()
         return jsonify({"message": "Message sent"}), 200
     except Exception as e:
+        raise Exception(e)
+
+
+def handle_matching(user: User, text: str):
+    try:
+        _prefix, age, town = text.split("#")
+        age_range = [int(age.split("-")[0]), int(age.split("-")[1])] if (age.find("-") > -1) else [int(age),
+                                                                                                   int(age)]
+        age_range.sort()
+        found = db.session.query(User).filter(
+            User.age >= age_range[0],
+            User.age <= age_range[1],
+            User.town == town.lower(),
+            User.gender != user.gender
+        ).all()
+        # return jsonify(serialized)
+        # commit message
+        saved = save_message(user, text, user.id)
+        save_message(get_system_obj(),
+                     f"We have {len(found)} {'ladies' if user.gender.name == 'MALE' else 'men'} who match your choice! We will send you details of 3 of them shortly. To get more details about a lady, SMS her number e.g., 0722010203 to 22141",
+                     user.id)
+        # commit 3 matches
+        sent = []
+        send_msg = ""
+        for person in found[:3]:
+            send_msg += f"{person.name} aged {person.age} {person.phone}.\n"
+            sent.append(person)
+        send_msg += f"Send NEXT to 22141 to receive details of the remaining {len(found) - len(sent)} {'ladies' if user.gender.name == 'MALE' else 'men'}"
+        save_message(get_system_obj(), send_msg, user.id)
+        # create new match
+        match = MatchTable()
+        match.sender_id = user.id
+        match.message_id = saved.id
+        matches_list = []
+        for person in found:
+            pair = PairTable()
+            pair.user1_id = user.id
+            pair.user2_id = person.id
+            pair.match_table_id = match.id
+            matches_list.append(pair)
+        match.matches = matches_list
+        sent_list = []
+        for person in sent:
+            new_sent = SentMatched()
+            new_sent.match_table_id = match.id
+            new_sent.user_id = user.id
+            sent_list.append(new_sent)
+        match.sent = sent_list
+        db.session.add(match)
+        db.session.commit()
+        # send message
+        return jsonify({"message": "Message sent"}), 200
+    except Exception as e:
+        print("Error matching: ", e)
         raise Exception(e)
