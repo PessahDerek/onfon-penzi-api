@@ -133,7 +133,9 @@ def handle_matching(user: User, text: str):
         _prefix, age, town = text.split("#")
         age_range = [int(age.split("-")[0]), int(age.split("-")[1])] if (age.find("-") > -1) else [int(age),
                                                                                                    int(age)]
+        # sort to fit so that its low-high
         age_range.sort()
+        # filter those who fit the criteria
         found = db.session.query(User).filter(
             User.age >= age_range[0],
             User.age <= age_range[1],
@@ -141,25 +143,29 @@ def handle_matching(user: User, text: str):
             User.gender != user.gender
         ).all()
         # return jsonify(serialized)
-        # commit message
+        # commit message bearing the request criteria
         saved = save_message(user, text, user.id)
+        # commit message with the result analysis
         save_message(get_system_obj(),
                      f"We have {len(found)} {'ladies' if user.gender.name == 'MALE' else 'men'} who match your choice! We will send you details of 3 of them shortly. To get more details about a lady, SMS her number e.g., 0722010203 to 22141",
                      user.id)
-        # commit 3 matches
+        # commit 3 matches to send in the follow-up text
         sent = []
         send_msg = ""
         for person in found[:3]:
             send_msg += f"{person.name} aged {person.age} {person.phone}.\n"
             sent.append(person)
         send_msg += f"Send NEXT to 22141 to receive details of the remaining {len(found) - len(sent)} {'ladies' if user.gender.name == 'MALE' else 'men'}"
+        # commit follow-up message
         save_message(get_system_obj(), send_msg, user.id)
-        # create new match
+        # create new match table with the records
         match = MatchTable()
         match.sender_id = user.id
         match.message_id = saved.id
+
+        # contain list of all the pairs
         matches_list = []
-        for person in found:
+        for person in found:  # iterate through the found list to add to the matching pair
             pair = PairTable()
             pair.user1_id = user.id
             pair.user2_id = person.id
@@ -170,7 +176,7 @@ def handle_matching(user: User, text: str):
         for person in sent:
             new_sent = SentMatched()
             new_sent.match_table_id = match.id
-            new_sent.user_id = user.id
+            new_sent.user_id = person.id  # save the id of the individual who has already been included in first follow-up text
             sent_list.append(new_sent)
         match.sent = sent_list
         db.session.add(match)
