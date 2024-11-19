@@ -1,17 +1,21 @@
 from flask import jsonify, make_response, request
 
-from ..extensions import db
-from ..models import User, Details, Message, Gender, MatchTable, PairTable, SentMatched
+from app.extensions import db
+from app.models import User, Details, Message, Gender, MatchTable, PairTable, SentMatched
+from app.utils.methods import retrieve_text_between
 
 
 def get_system_obj():
     found = db.session.query(User).get(1)
     return found if found else None
 
+def descriptive_message_template(found: User):
+    details = found.dict()['details']
+    return f"{found.name} aged {found.age}, {found.county} County, {found.town} town, {details['education']}, {details['profession']}, {details['marital_status']}, {details['religion']}, {details['ethnicity']}. Send DESCRIBE {found.phone} to get more details about {found.name.split(' ')[0]}."
+
 
 def save_message(user: User, message: str, user_id: int):
     try:
-        print("x->", user, "\n", user_id)
         new_message = Message()
         new_message.message = message
         new_message.msg_type = "incoming" if user.id != 1 else "outgoing"
@@ -186,3 +190,117 @@ def handle_matching(user: User, text: str):
     except Exception as e:
         print("Error matching: ", e)
         raise Exception(e)
+
+
+def handle_next(user: User, text: str):
+    try:
+        # find latest matching table
+        table = db.session.query(MatchTable).filter_by(sender_id=user.id).order_by(MatchTable.id).all()
+        save_message(user, text, user.id)
+        if len(table) < 1:  # user hasn't requested for any matching
+            save_message(get_system_obj(), "You haven't made a match request yet", user.id)
+            return jsonify({"message": "Message sent"}), 200
+        # find latest match request
+        last = table[-1]
+        # find if 6 have been sent
+        sent = last.sent.all()
+        sent_serialized = [s.dict()['user_id'] for s in sent]
+        all_matches = [pair_table.dict() for pair_table in last.matches.all()]
+        not_sent = [x for x in all_matches if x['user2_id'] not in sent_serialized]
+
+        if len(not_sent) < 1:
+            save_message(get_system_obj(), "No more matches left", user.id)
+            db.session.commit()
+            return jsonify({"message": "Message sent"}), 200
+        send_msg = ""
+        new_sent = []
+        # Pick 3
+        for data in not_sent[:3]:
+            person = db.session.query(User).filter(User.id == data["user2_id"]).one_or_none()
+            new_sent.append(person)
+            send_msg += f"{person.name} aged {person.age} {person.phone}.\n"
+            sent.append(person)
+        remaining = len(not_sent) - (len(sent) + 3)
+        send_msg += f"Send NEXT to 22141 to receive details of the remaining {remaining if remaining > 0 else 0} {'ladies' if user.gender.name == 'MALE' else 'men'}"
+        save_message(get_system_obj(), send_msg, user.id)
+        # save those sent
+        for new_s in new_sent:
+            new_sent_record = SentMatched()
+            new_sent_record.user_id = new_s.id
+            new_sent_record.match_table_id = last.id
+            db.session.add(new_sent_record)
+        db.session.commit()
+        return jsonify(sent_serialized), 200
+    except Exception as e:
+        print("Error handling next: ", e)
+        raise Exception(e)
+
+
+def request_user_data(user: User, phone: str):
+    try:
+        # Find the user
+        found = db.session.query(User).filter_by(phone=phone).one_or_none()
+        save_message(get_system_obj(), phone, user.id)
+        if found is None:  # user not found
+            save_message(get_system_obj(), "We could not find this user, double-check the number and try again",
+                         user.id)
+            db.session.commit()
+            return jsonify({"message": "Message sent"}), 200
+        # return jsonify(details), 200
+        msg = descriptive_message_template(found)
+        save_message(get_system_obj(), msg, user.id)
+        # notify the user
+        notification_msg = f"Hi {found.name.split(' ')[0]}, a {'man' if user.gender == Gender.MALE else 'lady'} called {user.name} is interested in you and requested your details. {'He' if user.gender == Gender.MALE else 'She'} is aged {user.age} based in {user.town}. Do you want to know more about {'him' if user.gender == Gender.MALE else 'her'}? Send YES to 22141"
+        save_message(get_system_obj(), notification_msg, found.id)
+        db.session.commit()
+        return jsonify({"message": "Message sent"}), 200
+    except Exception as e:
+        raise Exception("Error handling requesting user data: ", e)
+
+def request_description(user: User, text: str):
+    try:
+        _prefix, phone = text.split(" ")
+        found = db.session.query(User).filter_by(phone=phone).one_or_none()
+        save_message(get_system_obj(), text, user.id)
+        if found is None:
+            save_message(get_system_obj(), "We could not find the user, please double-check the number and try again!", user.id)
+            db.session.commit()
+            return jsonify({"message": "Message sent"}), 200
+        details = found.dict()["details"]
+        msg = f"{found.name} describes {'herself' if found.gender == Gender.FEMALE else 'himself'} as {details['description']}"
+        save_message(get_system_obj(), msg, user.id)
+        db.session.commit()
+        return jsonify({"message": "Message sent"}), 200
+    except Exception as e:
+        raise Exception("Error handling request_description: ", e)
+
+
+def follow_up_request_details(user: User, text: str):
+    """Requested by the user whose information was requested"""
+    try:
+        save_message(user, text, user.id)
+        # find the message informing them they are needed
+        crush = db.session.query(Message).filter(Message.message.ilike(f"%interested%")).filter_by(user_id=user.id).order_by('created_at').all()
+        found_serialized = [m.dict() for m in crush]
+        if len(found_serialized) == 0:
+            save_message(get_system_obj(), "We could not find any user who requested your information!", user.id)
+            db.session.commit()
+            return jsonify({"message": "Message sent"}), 200
+        specific_msg = found_serialized[-1]
+        print(specific_msg)
+        crush_name = retrieve_text_between(["called", "is"], specific_msg['message'])
+        if crush_name is None:
+            save_message(get_system_obj(), "Sorry something went wrong. We could not find the user!", user.id)
+            db.session.commit()
+            return jsonify({"message": "Message sent"}), 200
+        crush = db.session.query(User).filter(User.name == crush_name).one_or_none()
+        if crush is None:
+            save_message(get_system_obj(), "Sorry something went wrong. We could not find the user!", user.id)
+            db.session.commit()
+            return jsonify({"message": "Message sent"}), 200
+        msg = descriptive_message_template(crush)
+        save_message(get_system_obj(), msg, user.id)
+        db.session.commit()
+        return jsonify({"message": "Message sent"}), 200
+    except Exception as e:
+        raise Exception("Error handling request_details: ", e)

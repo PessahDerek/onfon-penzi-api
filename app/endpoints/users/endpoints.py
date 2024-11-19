@@ -2,8 +2,10 @@ from flask import request, redirect, Blueprint, jsonify, make_response
 
 from app.models import Message, User
 from app.utils.methods import valid_number
-from .methods import intro_message, create_account, save_details, save_description, handle_matching
-from ..extensions import db
+from .methods import intro_message, create_account, save_details, save_description, handle_matching, handle_next, \
+    request_user_data, request_description, follow_up_request_details
+from app.extensions import db
+from sqlalchemy.sql.operators import ilike_op
 
 root = Blueprint('root', __name__)
 
@@ -51,7 +53,7 @@ def get_texts():
         user_id = request.cookies.get("user_id")
         print("cookie: ", int(user_id))
         texts = db.session.query(Message).filter_by(user_id=int(user_id)).all()
-        json_ready_list = [text.to_dict() for text in texts]
+        json_ready_list = [text.dict() for text in texts]
         print("text: ", json_ready_list)
         return jsonify(json_ready_list)
     except Exception as e:
@@ -62,13 +64,12 @@ def get_texts():
 def handle_text():
     try:
         active_user = db.session.query(User).filter_by(phone=request.cookies.get("phone")).one_or_none()
-        text = request.get_json()["text"]
+        text: str = request.get_json()["text"]
         # split based on #
         split_text = text.split("#")
         # first element is the prefix, if no element set None
         prefix: str | None = split_text[0].lower() if len(split_text) > 0 else None
         if prefix is None and text != "penzi":  # invalid message format
-            print(split_text)
             return jsonify({"message": "Please provide a text!"}), 400
         # if prefix == "penzi":  # initiate chat
         #     return intro_message()r
@@ -80,6 +81,14 @@ def handle_text():
             return save_description(active_user, text)
         if prefix.startswith("match"):
             return handle_matching(active_user, text)
+        if prefix.lower().startswith("next"):
+            return handle_next(active_user, text)
+        if valid_number(text)[0]:  # message is a valid phone number
+            return request_user_data(active_user, text.strip())
+        if prefix.lower().startswith('describe'):
+            return request_description(active_user, text)
+        if text.lower() == 'yes':
+            return follow_up_request_details(active_user, text)
         return jsonify(text)
     except Exception as e:
         if type(e) == KeyError:

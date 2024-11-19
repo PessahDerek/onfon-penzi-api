@@ -10,6 +10,13 @@ class SentMatched(db.Model):
     # Define the back relationship to MatchTable
     match_table_ref = db.relationship('MatchTable', back_populates='sent')
 
+    def dict(self):
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "match_table_id": self.match_table_id,
+        }
+
 
 class PairTable(db.Model):
     __tablename__ = 'pairs'
@@ -20,6 +27,14 @@ class PairTable(db.Model):
 
     # Define a relationship to MatchTable using the class name
     match_table = db.relationship('MatchTable', back_populates='matches')
+
+    def dict(self):
+        return {
+            "id": self.id,
+            "user1_id": self.user1_id,
+            "user2_id": self.user2_id,
+            "match_table_id": self.match_table_id,
+        }
 
 
 class MatchTable(db.Model):
@@ -33,3 +48,12 @@ class MatchTable(db.Model):
 
     # Define a relationship to SentMatched using the class name, with back_populates
     sent = db.relationship('SentMatched', back_populates='match_table_ref', lazy='dynamic')
+
+    def dict(self):
+        return {
+            "id": self.id,
+            "sender_id": self.sender_id,
+            "message_id": self.message_id,
+            "matches": self.matches,
+            "sent": self.sent.all()
+        }

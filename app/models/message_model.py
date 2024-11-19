@@ -21,7 +21,7 @@ class Message(db.Model):
     msg_type = db.Column(AlchemyEnum(MsgType), nullable=False)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.now(timezone.utc))
 
-    def to_dict(self):
+    def dict(self):
         return {
             'id': self.id,
             'user_id': self.user_id,
