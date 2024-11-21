@@ -52,5 +52,5 @@ class User(db.Model):
             "gender": self.gender.name,
             "county": self.county,
             "town": self.town,
-            "details": self.details[0].dict(),
+            "details": self.details[0].dict() if len(self.details) > 0 else None,
         }
