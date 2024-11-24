@@ -21,6 +21,7 @@ class AuthMiddleware:
             response = Response(
                 json.dumps({"message": "Please restart conversation!"}),
                 status=401,
+                headers={"WWW-Authenticate": "Bearer", "AllowOrigin": "true"},
                 mimetype='application/json'
             )
             return response(environ, start_response)

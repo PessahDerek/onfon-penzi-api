@@ -1,10 +1,11 @@
 from flask import Blueprint, request, jsonify
-from flask_jwt_extended import create_access_token, jwt_required
 
 from app.endpoints.admins.methods import seed_admin
 from app.extensions import db, bcrypt
-from app.models import User
+from app.models import User, Message
 from app.models.admin_model import Admin
+from app.utils.decorators import login_required
+from app.utils.methods import generate_token
 
 admin = Blueprint('admin', __name__)
 
@@ -12,7 +13,7 @@ admin = Blueprint('admin', __name__)
 @admin.route('/login', methods=['POST'])
 def login():
     def successful(admin_user: Admin):
-        jwt_token = create_access_token(identity=str(admin_user.id))
+        jwt_token = generate_token(admin_user.id)
 
         return jsonify({
             "message": f"Welcome back {admin_user.username}",
@@ -44,7 +45,7 @@ def login():
 
 
 @admin.route('/users', methods=['GET'])
-@jwt_required()
+@login_required
 def get_users():
     try:
         users = db.session.query(User).all()
@@ -52,4 +53,16 @@ def get_users():
         return jsonify(serialized)
     except Exception as e:
         print("Error getting users: ", e)
+        return jsonify({"message": "Something went wrong please try again!"}), 500
+
+
+@admin.route('/messages', methods=['GET'])
+@login_required
+def get_messages():
+    try:
+        all_messages = db.session.query(Message).all()
+        serialized = [m.dict() for m in all_messages]
+        return jsonify(serialized)
+    except Exception as e:
+        print("Error getting messages: ", e)
         return jsonify({"message": "Something went wrong please try again!"}), 500
