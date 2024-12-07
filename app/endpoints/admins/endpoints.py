@@ -22,18 +22,21 @@ def login():
         })
 
     try:
-        username, password = request.get_json().values()
+        body = request.get_json()
+        username = body.get('username')
+        password = body.get('password')
         # check if user is in database
         found = db.session.query(Admin).filter(Admin.username == username).one_or_none()
         if found is None:  # not found
             # check if there is any admin
             admin_count = db.session.query(Admin).count()
             if admin_count > 0:  # if there is an existing admin refuse attempt
-                return jsonify({"message": "Wrong password or username!"})
+                return jsonify({"message": "Wrong password!"}), 401
             # create first admin
             new_admin = seed_admin(username, password)
             return successful(new_admin)
         # compare password
+        print("Length: ", password)
         if bcrypt.check_password_hash(found.password, password):
             return successful(found)
         return jsonify({"message": "Wrong password or username!"}), 401
