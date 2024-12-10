@@ -20,7 +20,7 @@ def retrieve_text_between(words: [str], text: str) -> str | None:
 
 def generate_token(user_id: int) -> str:
     expire = datetime.datetime.now(tz=datetime.timezone.utc) + datetime.timedelta(
-        minutes=30
+        minutes=120
     )
     return jwt.encode(
         algorithm='HS256',

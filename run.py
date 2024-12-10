@@ -27,6 +27,7 @@ def before_request():
     token = flask.request.headers.get("Authorization")
     if token:
         decoded = decode_token(token.replace("Bearer ", ""))
+        print("Req: ", flask.request.headers)
         if decoded is None:
             flask.g.setdefault('user', None)
         else:

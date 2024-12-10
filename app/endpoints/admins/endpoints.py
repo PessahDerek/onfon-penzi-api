@@ -52,7 +52,8 @@ def login():
 def get_users():
     try:
         users = db.session.query(User).all()
-        serialized = [x.dict() for x in users if x.id != 1]
+        serialized = [x.dict() for x in users] # if x.id != 1]
+        print("Serialized users: ", serialized)
         return jsonify(serialized)
     except Exception as e:
         print("Error getting users: ", e)

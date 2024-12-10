@@ -6,12 +6,12 @@ ecdsa==0.19.0
 Flask==3.1.0
 Flask-Bcrypt==1.0.1
 Flask-Cors==5.0.0
-Flask-GraphQL==2.0.1
+Flask-GraphQL
 Flask-JWT-Extended==4.7.1
 Flask-SQLAlchemy==3.1.1
 graphene==3.4.3
 graphene-sqlalchemy==2.1.0
-graphql-core==3.2.5
+graphql-core
 graphql-relay==3.2.0
 graphql-server-core==1.1.1
 greenlet==3.1.1
